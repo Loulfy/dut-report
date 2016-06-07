@@ -1,0 +1,56 @@
+\chapter{Solution d'administration à distance d'objets connectés}
+\label{sec:content}
+
+\section{Nécéssité de cette solution}
+
+La société Y3S developpe toute sorte d'objets connectés comme des centrales d'alarmes, sondes de relevé de température et tous hébergent un serveur HTTP local pour sa gestion ou son utilisation, malheureusement pour accéder à son contenu local depuis internet il faut ouvrir les ports et configurer les routeurs sur lequel nous y avons connecté l'objet. Pour les grandes entreprises ou collectivités il n'est pas toujours possible d'effetuer ce genre de modification à leur architecture réseau à cause de problèmes de sécurité, de compétence ou tout simplement parce que le nombre d'objets connectés est trop important pour recevoir ces configurations manuellement pour chaque unité.
+
+Une autre solution consiste à developper un CLOUD sur lequel se connectent tout les objets connectés et permettant aux utilisateurs d'y accéder par l'intermédiaire d'un frontend HTTP par exemple. Cette solution reste extrêmement couteuse, en effet elle nécessite de développer une solution CLOUD spécifique à chaque service ou type d'objet connecté.
+
+C'est donc dans cette optique que l'entreprise recherche une solution qui permettrerai de remplacer le CLOUD par une solution plus générique qui donnerait directement accès aux services locaux hébergés directement sur l'objet connecté, réduissant ainsi les coût en developpement et installation.
+
+\section{Spécifications}
+
+\subsection{Spécifications fonctionnelles}
+
+Il est necessaire de développer la solution en deux partie, le client a installé sur l'objet et le serveur backend en charge de rendre l'objet connecté accesible sur internet. La solution doit être capable de fournir un client ou un SDK à installer sur l'objet connecté, qui permet permet de se connecter au serveur backend de la solution. Les principales fonctionnalités de la solution sont :
+
+\begin{itemize}
+    \item Générer un nom de domaine unique par objet connecté qui hébergent un serveur HTTP.
+    \item Gérer les déconnexion, reconnexion de l'objet connecté, pointer sur une page HTML d'erreur si on tente d'accéder au nom de domaine d'un objet déconnecté et founir un nouveau nom de domaine unique si l'objet est resté deconnecté jusqu'à l'écoulement d'un délais prédéfini, sinon lui resservir le même nom de domaine.
+    \item Pouvoir se reconnecter automatiquement à un des serveurs s'il perd la connexion.
+    \item La solution ne doit pas se contenter d'un seul seule protocole tel que le HTTP, mais doit pouvoir relayer n'importe quel protocole utilisant le TCP.
+\end{itemize}
+
+\subsection{Contraintes}
+
+Le monde des objets connectés utilise des architectures de processeur spécifiques et variés. La solution cliente doit donc être multi-plateforme, elle doit fonctionner sur UNIX, Windows, Android sur des architectures x86/x64, ARM, MIPS. On doit pouvoir aussi réimplémenter le client sur microcontrôleur possèdant une stack IP parce qu'il sont très utilisés dans le monde de l'industrie et donc des objets connectés.
+
+Certaine entreprise ont des pare-feux très restrictifs ne permettant la sortie que de certain protocole comme le HTTP et HTTPS respectivement sur le port 80 et 443.
+
+\subsection{Spécifications techniques}
+
+Pour répondre aux besoins de la solution, des choix techniques ont étés fait tout le long du developpement du prototype de la solution. Au début Y3S m'a demandé de comparer les solutions existantes de Reverse Tunnel, qui leur semblait être la technique la plus pertinente, particulièrement si la solution utilise les websockets.
+
+J'ai personnellement choisi de développer le client en C++, un langage bas niveau orienté objet qui reste facile à compiler sur plusieurs architectures. Le serveur a été développé en nodejs pour sa simplicité de mise en place et de developpement, sa scabilité et sa maintenance.
+
+Pour résumer, voici les technologies techniques utilisés actuellement sur le prototype à la fin de son développement, leur justification d'utilisation suivra dans le rapport :
+
+\begin{itemize}
+    \item Reverse Tunneling en websocket : transfert de protocole TCP à travers n'importe quel routeur, pare-feu qui accepte le HTTP/HTTPS.
+    \item C++ et socket natif : développement client.
+    \item Node.js : développement serveur.
+    \item Redis : base de données.
+    \item OpenResty : proxy HTTP dynamique.
+\end{itemize}
+
+\section{Principe du Reverse Tunnel}
+
+\section{Comparaison de solution de reverse tunnel}
+
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "isae-report-template"
+%%% End: 
