@@ -30,7 +30,7 @@ Certaine entreprise ont des pare-feux très restrictifs ne permettant la sortie 
 
 \subsection{Spécifications techniques}
 
-Pour répondre aux besoins de la solution, des choix techniques ont étés fait tout le long du developpement du prototype de la solution. Au début Y3S m'a demandé de comparer les solutions existantes de Reverse Tunnel, qui leur semblait être la technique la plus pertinente, particulièrement si la solution utilise les websockets.
+Pour répondre aux besoins de la solution, des choix techniques ont étés fait tout le long du developpement du prototype de la solution. Au début Y3S m'a demandé de comparer les solutions existantes de Reverse Tunneling, qui leur semblait être la technique la plus pertinente, particulièrement si la solution utilise les websockets.
 
 J'ai personnellement choisi de développer le client en C++, un langage bas niveau orienté objet qui reste facile à compiler sur plusieurs architectures. Le serveur a été développé en nodejs pour sa simplicité de mise en place et de developpement, sa scabilité et sa maintenance.
 
@@ -44,9 +44,21 @@ Pour résumer, voici les technologies techniques utilisés actuellement sur le p
     \item OpenResty : proxy HTTP dynamique.
 \end{itemize}
 
-\section{Principe du Reverse Tunnel}
+\section{Principe du Reverse Tunneling}
+
+Pour illustrer le principe du reverse tunneling je vais me servir d'un scénario. Imaginons que nous souhaitons atteindre le serveur HTTP d'Alice, mais Alice est derrière un NAT qui bloque toute les connexions entrantes sur son réseau. Malheureusement elle n'a pas la main sur ce routeur, ce qui nous empêche naturellement toute modification du réseau. Par contre Bob à le contrôle de son réseau qui accepte les connexion entrante sur sa machine, ce qui va nous permettre de procéder en sens inverse. C'est Alice que nous souhaitons joindre qui va créer une connexion vers Bob que nous appelerons tunnel. En effet il suffit à Bob d'écouter sur le port de son choix qu'Alice connait, il attend qu'Alice se connecte dessus et lui transmet sa requête HTTP. De son côte Alice va recevoir la requête HTTP de Bob, qu'elle relaye à son serveur HTTP et renvoit la réponse HTTP par cette même connexion. C'est pour cela que cela s'appelle du reverse tunneling, c'est notre cible qui est à l'initiative de la connexion, autrement dis du tunnel.
 
 \section{Comparaison de solution de reverse tunnel}
+
+Après quelque jours de recherche, j'ai retenu trois solutions de reverse tunnel :
+
+\begin{itemize}
+    \item OpenSSH
+    \item Etherws
+    \item Node Reverse Wstunnel
+\end{itemize}
+
+OpenSSH est une suite d'outils SSH libre mettant à disposition un client et server SSH très complet. Hors le SSH permet d'initialiser un tunnel directement avec une commande SSH. Pour en revenir sur notre scénario précédent, Bob installe un serveur SSH sur sa machine, Alice va s'y connecter en précisant qu'elle ouvre un tunnel inverse de son port 80 sur lequel écoute son serveur HTTP, jusqu'au port 
 
 
 
