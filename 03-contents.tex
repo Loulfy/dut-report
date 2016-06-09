@@ -87,7 +87,7 @@ Inconvénients :
 
 Etherws est un mini VPN utilisant des websockets comme tunnel, il est entièrement développé en python. La configuration se fait en deux étapes, d'abords la création de l'interface virtuel en TUN/TAP avec l'adressage de l'IP virtuel, puis la connexion au serveur (toujours celui de Bob qui est le seul à disposé d'un nom de domaine public). Le fait d'utiliser une interface virtuel permet d'utiliser tout les ports à la fois sans en préciser un en particulier qui doit être relié à un autre distant sur la machine de Bob.
 
-Dans notre cas Alice va choisir d'appeler son interface virtuel \og etherws0 \fg avec l'IP \og 10.0.2.8 \fg et se connecter sur le serveur etherws de Bob (en 80). Pour accéder au serveur HTTP d'Alice, Bob doit remonter le tunnel en passant par l'IP virtuel d'Alice, soit comme cela http://10.0.2.8:80.
+Dans notre cas Alice va choisir d'appeler son interface virtuel \og etherws0 \fg{} avec l'IP \og 10.0.2.8 \fg{} et se connecter sur le serveur etherws de Bob (en 80). Pour accéder au serveur HTTP d'Alice, Bob doit remonter le tunnel en passant par l'IP virtuel d'Alice, soit comme cela http://10.0.2.8:80.
 
 \noindent Commande nécessaire à la création du tunnel :
 \begin{lstlisting}[language=bash]
@@ -153,14 +153,52 @@ Dans notre cas Bob peut configurer son proxy HTTP qui écoute sur le port 80 de 
 
 Malheureusement la plus part des proxy HTTP sont configurables à l'arrêt, ce qui veut dire que si nous voulons rediriger d'autre serveur HTTP comme Alice, nous devons éditer les configurations du proxy et redémarrer les services, le tout manuellement, ce qui est tout simplement impossible pour les objectifs de notre solutions de pouvoirs rediriger des centaines de nom de domaines unique pour autant d'objets connectés. Il m'a fallu rechercher un solution dynamique à notre problème.
 
-OpenResty est un serveur, proxy HTTP basé sur Nginx, qui à la particularité d'être très modulables grâces à ces nombreux modules configurables et à la possibilité d'exécuter des scripts LUA lorsque l'on reçoit une requête HTTP. LUA est un langage de scripting très léger et facile à embarquer. Avec OpenResty j'ai pu écrire une configuration de proxy qui lorsque qu'il reçoit une requête, recherche \og Host \fg dans notre base de données et si ce nom de domaine existe dans la base alors rediriger la requête vers l'IP et port associés. Tout cela est possibles grâce à un script LUA qui se connecte à la base de données, de plus nous pouvons rajouter des noms de domaines à rediriger dans la base de données sans à devoir redémarrer le proxy. OpenResty nous a donc permis de créer un proxy HTTP dynamique.
+OpenResty est un serveur, proxy HTTP basé sur Nginx, qui à la particularité d'être très modulables grâces à ces nombreux modules configurables et à la possibilité d'exécuter des scripts LUA lorsque l'on reçoit une requête HTTP. LUA est un langage de scripting très léger et facile à embarquer. Avec OpenResty j'ai pu écrire une configuration de proxy qui lorsque qu'il reçoit une requête, recherche \og Host \fg{} dans notre base de données et si ce nom de domaine existe dans la base alors rediriger la requête vers l'IP et port associés. Tout cela est possibles grâce à un script LUA qui se connecte à la base de données, de plus nous pouvons rajouter des noms de domaines à rediriger dans la base de données sans à devoir redémarrer le proxy. OpenResty nous a donc permis de créer un proxy HTTP dynamique.
 
 \section{Base de données Redis}
 
 Pour faire fonctionner l'ensemble de notre solution, il a fallut faire le choix d'une base de données central qui ferait le lien entre le proxy HTTP dynamique et le serveur wstunnel en Node.js, mais aussi avec la futur partie front-end, en charge d'afficher la liste des ports rediriger pour chaque client et le nom de dommaine unique si c'est un port 80 ou 443. J'ai fais le choix d'utiliser Redis, qui est une base de données No-SQL dont la particularité est de stocker tout son contenu dans la mémoire vive. Redis utilise des structures de données très simple comme des listes, des ensembles, des tableaux associatifs ou même des ensembles triés. Elle peut en stocker des dizaines de millions de clefs et valeurs dans à peines 100 Mio de RAM. Son protocole de communication, ses structures et son stockage en RAM ont fait d'elle une base de données extrement rapide, c'est justement ce qu'il nous faut pour que notre proxy HTTP dynamique réponde le plus rapidement possible aux requêtes. Une petite fonctionnalité de Redis permet aussi de rajouter un délais d'expiration sur certaines valeurs stockés avant leur suppression, cela c'est avérait pratique pour supprimer automatiquement les noms de domaines et ports qui n'etait plus utilisés par l'objet connecté qui s'est justement déconnectés, une fonctionnalité qui nous permet donc de libérer les ports non utliser et regagner en capacité. Par contre si l'objet connecté se reconnecte avant la fin du délais, alors il conservera son ports et son nom de domaine alloué.
 
-\section{Modification et Re-developpement du Websocket tunnel}
+\section{Modification et Re-developpement du Tunnel WebSocket}
 
+\subsection{WebSocket}
+
+Le websocket est un protocole réseau standard du Web visant à créer une communication full-duplex sur une connexion HTTP, donc en TCP. Ce protocole a été normalisé dans la RFC 6455, son but est de pouvoir établir des communications bidirectionnelles avec un long temps de vie entre le client et serveur HTTP afin de notifier le client d'un changement d'état du serveur ou même d'envoyer des données ponctuel du serveur au client.
+
+Pour initialiser une connexion, websocket il faut envoyer une requête HTTP spécifique au serveur qu'on appelle le \og Handshake \fg{} au quel le serveur doit répondre avec une réponse HTTP. Ensuite à partir de cette échange, la connexion HTTP passe en connexion websocket.
+
+\noindent Exemple de requête handshake :
+\begin{lstlisting}[language=bash]
+  GET /chat HTTP/1.1
+  Host: example.com:8000
+  Upgrade: websocket
+  Connection: Upgrade
+  Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+  Sec-WebSocket-Version: 13
+\end{lstlisting}
+
+\noindent Exemple de réponse handshake :
+\begin{lstlisting}[language=bash]
+  HTTP/1.1 101 Switching Protocols
+  Upgrade: websocket
+  Connection: Upgrade
+  Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
+\end{lstlisting}
+
+Lors du handshake le client passe dans la requête HTTP le champs \og Sec-WebSocket-Key \fg{} qui contient une clef aléatoirement généré par le client et cryptée en base64. Le serveur doit hasher en SHA1 la concaténation de cette clef avec une chaîne de caractère prédéfini dans la RFC 6455 et convertir la sortie en base64, ce qui correspond dans la réponse au champs \og Sec-WebSocket-Accept \fg{}. Le client doit ou peut réaliser la même opération pour vérifier qu'il communique bien avec un serveur websocket et non un proxy qu'il lui renverrait un simple cache.
+
+La suite de la communication est entièrement basé sur des trames websocket binaire, rythmé par des échanges de trames de controle ping et pong dit \og battement de coeur \fg{}, pour avoir la certitude que le la connexion est toujours active. Je ne vais pas détailler d'avantage les trames websocket car cela est peu utile et très spécifique, il suffit de lire la RFC 6455, je rajouterai seulement que le webscoket permet d'envoyer deux type de données, du texte brute UTF-8 et du binaires.
+
+\subsection{Fonctionnement}
+
+Pour expliquer le principe de fonctionnemment du tunnel en websocket (qui sera toujours en mode \og reverse \fg{}) qu'on applera plus facilement le tunnel, sans pour l'instant y ajouter le proxy HTTP dynamque, je vais en rédéfinir les acteurs, il y en a trois principaux :
+\begin{itemize}
+    \item Le serveur, c'est le serveur websocket principal qui pilote tout le tunnel, son IP est donc connu et public. Il est connectés à la base de données Redis, sur laquel il stock les ports alloué et connexions courantes.
+    \item Le client, c'est la machine ou objet connecté souhaitant rendre accessible un de ses serveurs au public, dans notre cas se sera un serveur HTTP.
+    \item Le navigateur, c'est un utilisateur externe qui veut accéder au service du client, dans notre cas il fera une requête HTTP sur un port définis du serveur websocket. 
+\end{itemize}
+
+Pour faire fonctionner le tunnel il faut au minimum deux connexions websocket, la première est le websocket de contrôle, il sert à initialiser et avertir le client d'une nouvelle connexion du navigateur. Dans le handshake du websocket de contrôle, il faut passer dans l'URL les paramètres suivant, le nom du client et les ports qu'il souhaite faire passer. Le serveur va allouer au client un port disponible sur sa machine ou bien lui donner un port qu'il a déjà utilisé lors de sa précédente connexion mais qui n'a pas encore expiré. Le serveur va monter ce nouveau port allouer comme serveur TCP et y attendre une connexion. Bien sur si un client avec le même nom est déjà connecté la connexion sera refusé. C'est ce que j'appelle la phase d'initialisation du tunnel. Maintenant un navigateur qui connait le port allouer au client sur le serveur va se connecter dessus et y effectuer une requête HTTP. Le serveur va accepté la connexion étant donné qu'une requête HTTP utilise le TCP, il va mettre en attente le navigateur, tagger cette connexion avec un ID unique et envoyer un message sur le websocket de contrôle au client associé à ce port alloué. Ce message est très simple, il contient simplement le port qui a été associé à cette allocation de port lors de la phase d'initialisation du tunnel, soit le port 80 pour un serveur HTTP et l'ID de la connexion du navigateur. En recevant ce message par le websocket de contrôle le client va créer un nouvelle connexion websocket sur le serveur, que j'appelle le websocket de transfert, mais cette fois l'URL du handshake contiendra en paramètre l'ID associé à la connexion du navigateur. Il va aussi créer une connexion local vers son serveur HTTP et la relier au nouveau websocket de transfert, parce que le message reçu indiqué une redirection sur le port 80. Ainsi le serveur quand il va recevoir la connexion websocket saura exactement que c'est un websocket de transfert grâce à l'ID dans l'URL associé à la connexion du navigateur en cours. Maintenant que le tunnel est completement formé le serveur va rediriger la requête du navigateur dans le websocket de transfert associé en mode binaire, qui va lui même la rediriger côté client au serveur HTTP. Celui-ci va répondre en envoyant une réponse HTTP qui va faire le chemin inverse. Une fois la réponse arrivé jusqu'à son destinataire, le navigateur va fermé la connexion TCP, ce qui va fermé également le websocket de transfert associé à cette connexion ainsi que la connexion local au serveur HTTP du client. Seul restera le websocket de contrôle et le serveur TCP monté sur le port alloué, qui attendront une nouvelle connexion d'un navigateur. Du fait que les connexion du navigateur soit taggé d'un ID unique, plusieurs connexion peuvent être traités à la fois, ce qui entraine autant de websocket de transfert que de connexion des navigateurs, voilà pourquoi le websocket de contrôle n'est là que pour avertir des nouvelles connexions et ne fais pas aussi le transfert des requêtes. Si c'était le cas il y aura trop d'attente entre chaque requête. Lorsque que le client va fermer la connexion du websocket de contrôle alors le serveur TCP associé au port alloué au client va se fermer et le port prendra un délais d'expiration dans la base de données Redis.
 
 %%% Local Variables: 
 %%% mode: latex
