@@ -1,52 +1,21 @@
-% A LaTeX (non-official) template for ISAE projects reports
-% Copyright (C) 2014 Damien Roque
-% Version: 0.2
-% Author: Damien Roque <damien.roque_AT_isae.fr>
-
 \documentclass[a4paper,12pt]{book}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-% \usepackage[frenchb]{babel} % If you write in French
-% \usepackage[english]{babel} % If you write in English
-\usepackage[english,frenchb]{babel} % If you write both
+\usepackage[english,frenchb]{babel}
 \usepackage{a4wide}
-%%% Tu ne donnais aucune indication de police de caractère. Dans ce
-%%% cas, c'est du Computer Modern. On peut aimer mais elle est
-%%% vraiment très fine. Si tu veux, tu peux commenter les deux lignes
-%%% qui suivent (Times et Helvetica) :
 \usepackage{mathptmx}
 \usepackage{helvet}
-%%%
-
 \usepackage{listings}
-
+\lstset{basicstyle=\ttfamily, gobble=2}
 \usepackage{graphicx}
 \graphicspath{{images/}}
-\usepackage{subfig}
-\usepackage{tikz}
-\usetikzlibrary{shapes,arrows}
-\usepackage{pgfplots}
-\pgfplotsset{compat=newest}
-\pgfplotsset{plot coordinates/math parser=false}
-\newlength\figureheight
-\newlength\figurewidth
-\pgfkeys{/pgf/number format/.cd,
-set decimal separator={,\!},
-1000 sep={\,},
-}
-\usepackage{ifthen}
-\usepackage{ifpdf}
-\ifpdf
-\usepackage[pdftex]{hyperref}
-\else
 \usepackage{hyperref}
-\fi
 \usepackage{color}
 \hypersetup{%
-colorlinks=true,
-linkcolor=black,
-citecolor=black,
-urlcolor=black}
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  urlcolor=black}
 
 \renewcommand{\baselinestretch}{1.05}
 \usepackage{fancyhdr}
@@ -70,107 +39,28 @@ urlcolor=black}
 }
 
 \makeatletter
-\def\@textbottom{\vskip \z@ \@plus 1pt}
-\let\@texttop\relax
-\makeatother
-
-\makeatletter
-\def\cleardoublepage{\clearpage\if@twoside \ifodd\c@page\else%
+\def\cleardoublepage{\clearpage\if@twoside \ifodd\c@page\else
   \hbox{}%
   \thispagestyle{empty}%
   \newpage%
   \if@twocolumn\hbox{}\newpage\fi\fi\fi}
 \makeatother
 
-\usepackage{amsthm}
-\usepackage{amssymb,amsmath,bbm}
+\usepackage{amsmath}
 \usepackage{array}
-\usepackage{bm}
 \usepackage{multirow}
 \usepackage[footnote]{acronym}
 
-\newcommand*{\SET}[1]  {\ensuremath{\mathbf{#1}}}
-\newcommand*{\VEC}[1]  {\ensuremath{\boldsymbol{#1}}}
-\newcommand*{\FAM}[1]  {\ensuremath{\boldsymbol{#1}}}
-\newcommand*{\MAT}[1]  {\ensuremath{\boldsymbol{#1}}}
-\newcommand*{\OP}[1]  {\ensuremath{\mathrm{#1}}}
-\newcommand*{\NORM}[1]  {\ensuremath{\left\|#1\right\|}}
-\newcommand*{\DPR}[2]  {\ensuremath{\left \langle #1,#2 \right \rangle}}
-\newcommand*{\calbf}[1]  {\ensuremath{\boldsymbol{\mathcal{#1}}}}
-\newcommand*{\shift}[1]  {\ensuremath{\boldsymbol{#1}}}
 
-\newcommand{\eqdef}{\stackrel{\mathrm{def}}{=}}
-\newcommand{\argmax}{\operatornamewithlimits{argmax}}
-\newcommand{\argmin}{\operatornamewithlimits{argmin}}
-\newcommand{\ud}{\, \mathrm{d}}
-\newcommand{\vect}{\text{Vect}}
-\newcommand{\sinc}{\ensuremath{\mathrm{sinc}}}
-\newcommand{\esp}{\ensuremath{\mathbb{E}}}
-\newcommand{\hilbert}{\ensuremath{\mathcal{H}}}
-\newcommand{\fourier}{\ensuremath{\mathcal{F}}}
-\newcommand{\sgn}{\text{sgn}}
-\newcommand{\intTT}{\int_{-T}^{T}}
-\newcommand{\intT}{\int_{-\frac{T}{2}}^{\frac{T}{2}}}
-\newcommand{\intinf}{\int_{-\infty}^{+\infty}}
-\newcommand{\Sh}{\ensuremath{\boldsymbol{S}}}
-\newcommand{\C}{\SET{C}}
-\newcommand{\R}{\SET{R}}
-\newcommand{\Z}{\SET{Z}}
-\newcommand{\N}{\SET{N}}
-\newcommand{\K}{\SET{K}}
-\newcommand{\reel}{\mathcal{R}}
-\newcommand{\imag}{\mathcal{I}}
-\newcommand{\cmnr}{c_{m,n}^\reel}
-\newcommand{\cmni}{c_{m,n}^\imag}
-\newcommand{\cnr}{c_{n}^\reel}
-\newcommand{\cni}{c_{n}^\imag}
-\newcommand{\tproto}{g}
-\newcommand{\rproto}{\check{g}}
-\newcommand{\LR}{\mathcal{L}_2(\SET{R})}
-\newcommand{\LZ}{\ell_2(\SET{Z})}
-\newcommand{\LZI}[1]{\ell_2(\SET{#1})}
-\newcommand{\LZZ}{\ell_2(\SET{Z}^2)}
-\newcommand{\diag}{\operatorname{diag}}
-\newcommand{\noise}{z}
-\newcommand{\Noise}{Z}
-\newcommand{\filtnoise}{\zeta}
-\newcommand{\tp}{g}
-\newcommand{\rp}{\check{g}}
-\newcommand{\TP}{G}
-\newcommand{\RP}{\check{G}}
-\newcommand{\dmin}{d_{\mathrm{min}}}
-\newcommand{\Dmin}{D_{\mathrm{min}}}
-\newcommand{\Image}{\ensuremath{\text{Im}}}
-\newcommand{\Span}{\ensuremath{\text{Span}}}
-
-\newtheoremstyle{break}
-  {11pt}{11pt}%
-  {\itshape}{}%
-  {\bfseries}{}%
-  {\newline}{}%
-\theoremstyle{break}
-
-%\theoremstyle{definition}
-\newtheorem{definition}{Définition}[chapter]
-
-%\theoremstyle{definition}
-\newtheorem{theoreme}{Théorème}[chapter]
-
-%\theoremstyle{remark}
-\newtheorem{remarque}{Remarque}[chapter]
-
-%\theoremstyle{plain}
-\newtheorem{propriete}{Propriété}[chapter]
-\newtheorem{exemple}{Exemple}[chapter]
-
-\parskip=5pt
+\parskip=5pt plus2pt minus 1pt
 %\sloppy
 
+\frenchbsetup{ReduceListSpacing=false}
 \begin{document}
 
-%%%%%%%%%%%%%%%%%%
-%%% First page %%%
-%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%
+%%% Page de titre %%%
+%%%%%%%%%%%%%%%%%%%%%
 
 \begin{titlepage}
 \centering
@@ -180,7 +70,7 @@ urlcolor=black}
 %%% Logos, nom de l'université et de l'entreprise
 \begin{minipage}[b]{0.25\linewidth}
   \includegraphics[width=\linewidth]{logo_dut}
-
+  \par\vspace{2mm}
   \small
   Département\\
   Informatique\\
@@ -189,7 +79,7 @@ urlcolor=black}
 \hspace{0.25\linewidth}
 \begin{minipage}[b]{0.25\linewidth}
   \includegraphics[width=\linewidth]{logo_y3s}
-
+  \par\vspace{2mm}
   \small
   Société Y3S SAS\\
   47, rue Fragonard\\
@@ -234,23 +124,35 @@ du 4 avril au 11 juin 2016
 %%% Abstract %%%
 %%%%%%%%%%%%%%%%
 
-
-% \thispagestyle{empty}
-
-% \vspace*{\fill}
-% \noindent\rule[2pt]{\textwidth}{0.5pt}\\
-% {\textbf{Résumé ---}}
 \chapter{Résumé}
 \begin{quotation}
-	Dans l'univers naissant de l'Internet des objets en plein developpement, ces objets hébergent de plus en plus de contenu multimédia et service. L'entreprise Y3S recherche une solution pour pouvoir accéder à n'importe quel objet connecté à travers internet, sans connaître sa configuration réseau actuel ou son adresse internet de manière générique.
+  Dans l'univers naissant de l'Internet des objets en plein
+  developpement, ces objets hébergent de plus en plus de contenu
+  multimédia et service. L'entreprise Y3S recherche une solution pour
+  pouvoir accéder à n'importe quel objet connecté à travers internet,
+  sans connaître sa configuration réseau actuel ou son adresse
+  internet de manière générique.
 \end{quotation}
+
+\begingroup
+\makeatletter
+\renewcommand\chapter{%
+  \@afterindentfalse
+  \secdef\@chapter\@schapter
+}
 
 \begin{otherlanguage}{english}
   \chapter{Abstract}
   \begin{quotation}
-	In the nascent world of the Internet of things in full development , these objects are home more and more multimedia content and services. The company Y3S looking for a solution to access any object connected through internet, without knowing its current network configuration or IP address generically.
+    In the nascent world of the Internet of things in full development
+    , these objects are home more and more multimedia content and
+    services. The company Y3S looking for a solution to access any
+    object connected through internet, without knowing its current
+    network configuration or IP address generically.
   \end{quotation}
 \end{otherlanguage}
+
+\endgroup
 % {\textbf{Mots clés :}}
 % Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus. Suspendisse lectus tortor.
 % \\

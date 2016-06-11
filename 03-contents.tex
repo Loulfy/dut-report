@@ -62,10 +62,10 @@ Après quelque jours de recherche, j'ai retenu trois solutions de reverse tunnel
 
 OpenSSH est une suite d'outils SSH libre mettant à disposition un client et server SSH très complet. Hors le SSH permet d'initialiser un tunnel directement avec une commande SSH. Pour en revenir sur notre scénario précédent. Bob installe un serveur SSH sur sa machine (en 22), toujours accessible de l'extérieur par le nom de domaine bob.fr et rajoute sur son serveur SSH l'utilisateur alice. Elle va s'y connecter en précisant qu'elle ouvre un tunnel inverse de son port 80 sur lequel écoute son serveur HTTP, jusqu'au port de son choix par exemple le 8080. Bob peut desormais accéder au serveur d'Alice en remontant le tunnel par l'adresse http://localhost:8080.
 
-\noindent L'action se résume par cette unique ligne de commande qu'Alice exécute sur sa machine :
+ L'action se résume par cette unique ligne de commande qu'Alice exécute sur sa machine :
 \begin{lstlisting}[language=bash]
   $ ssh -NR 8080:localhost:80 alice@bob.fr
-\end{lstlisting}
+\end{lstlisting}%$
 
 Bien évidemment cela fonctionne pour n'importe quel service en TCP, il suffit juste de choisir le bon port.
 
@@ -90,12 +90,12 @@ Etherws est un mini VPN utilisant des websockets comme tunnel, il est entièreme
 
 Dans notre cas Alice va choisir d'appeler son interface virtuel \og etherws0 \fg{} avec l'IP \og 10.0.2.8 \fg{} et se connecter sur le serveur etherws de Bob (en 80). Pour accéder au serveur HTTP d'Alice, Bob doit remonter le tunnel en passant par l'IP virtuele d'Alice, soit comme cela http://10.0.2.8:80.
 
-\noindent Commande nécessaire à la création du tunnel :
+ Commande nécessaire à la création du tunnel :
 \begin{lstlisting}[language=bash]
-  # etherws sw
-  # etherws ctl addport tap ethws0
-  # etherws ctl setif --address 10.0.2.8 --netmask 255.255.255.0 1
-  # etherws ctl addport client ws://bob.fr/
+  etherws sw
+  etherws ctl addport tap ethws0
+  etherws ctl setif --address 10.0.2.8 --netmask 255.255.255.0 1
+  etherws ctl addport client ws://bob.fr/
 \end{lstlisting}
 
 Avantages :
@@ -116,10 +116,10 @@ Inconvénients :
 
 Node Reverse Wstunnel est un tunnel inversé développé en javascript avec Node.js, utilisant les websockets. Il s'utilise sur le même principe que le tunnel inversé SSH mais en passant par un tunnel websocket au lieu d'un tunnel SSH. Bob lance sur sa machine le serveur tunnel inversé en 80 (avec node) et Alice s'y connecte avec le client fourni en précisant les deux ports qu'elle veut relier.
 
-\noindent Si on reprend la même configuration que pour le tunnel SSH, la commande qu'Alice doit exécuter est :
+Si on reprend la même configuration que pour le tunnel SSH, la commande qu'Alice doit exécuter est :
 \begin{lstlisting}[language=bash]
   $ ./wstt.js -r 8080:localhost:80 ws://bob.fr/
-\end{lstlisting}
+\end{lstlisting}%$
 
 Bob peut donc accéder au serveur HTTP d'Alice en se connectant en http://localhost:8080.
 
@@ -146,7 +146,7 @@ C'est pour résoudre ce problème que j'ai dû installer un proxy HTTP. Celui-ci
 
 Dans ce cas Bob peut configurer son proxy HTTP qui écoute sur le port 80 de rediriger le nom de domaine \og alice.bob.fr \fg{} en \og localhost:8080 \fg{} (le serveur wstunnel est sur un autre port disponible).
 
-\noindent Exemple de requête HTTP :
+Exemple de requête HTTP :
 \begin{lstlisting}[language=bash]
   GET / HTTP/1.1
   Host: alice.bob.fr
@@ -168,7 +168,7 @@ Le websocket est un protocole réseau standard du Web visant à créer une commu
 
 Pour initialiser une connexion websocket il faut envoyer une requête HTTP spécifique au serveur qu'on appelle le \og Handshake \fg{} au quel le serveur doit répondre avec une réponse HTTP. Ensuite à partir de cette échange, la connexion HTTP passe en connexion websocket.
 
-\noindent Exemple de requête handshake :
+Exemple de requête handshake :
 \begin{lstlisting}[language=bash]
   GET /chat HTTP/1.1
   Host: example.com:8000
@@ -178,7 +178,7 @@ Pour initialiser une connexion websocket il faut envoyer une requête HTTP spéc
   Sec-WebSocket-Version: 13
 \end{lstlisting}
 
-\noindent Exemple de réponse handshake :
+Exemple de réponse handshake :
 \begin{lstlisting}[language=bash]
   HTTP/1.1 101 Switching Protocols
   Upgrade: websocket
@@ -208,7 +208,37 @@ Cette solution serveur tunnel est prévus pour accueillir des centaines ou milli
 Pour palier à ce problème j'ai rajouté une petite implémentation sur le serveur tunnel, chaque serveur dispose d'une IP et d'un compteur de client dans la base de données Redis. Quand un client ce connecte sur un serveur, celui-ci va faire un requête à Redis pour trier et selectionner l'IP qui possède le moins de client grâce au compteur de chaque serveur. Si l'IP qu'il obtient est la sienne, alors le serveur tunnel accepte la connexion websocket de contrôle et incrémente son compteur, sinon il retourne au client une réponse HTTP de code 302 avec en location l'IP, ce qui signifit une redirection HTTP sur cette IP, ne pas oublier que le websocket est construit sur un serveur HTTP à l'aide d'une requête handshake donc c'est totalement possible. Le client va devoir refaire une connexion websocket sur l'IP de redirection, jusqu'a obtenir un serveur qui l'accepte.
 
 \section{}
-
+\begin{figure}[htp]
+\centering
+\begin{lstlisting}[gobble=0, numbers=left, frame=l,
+  basewidth={0.55em, 0.4em}]
+ 0               1               2               3              
+ 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
++-+-+-+-+-------+-+-------------+-------------------------------+
+|F|R|R|R| opcode|M| Payload len |    Extended payload length    |
+|I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
+|N|V|V|V|       |S|             |   (if payload len==126/127)   |
+| |1|2|3|       |K|             |                               |
++-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
+ 4               5               6               7              
++ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
+|     Extended payload length continued, if payload len == 127  |
++ - - - - - - - - - - - - - - - +-------------------------------+
+ 8               9               10              11             
++ - - - - - - - - - - - - - - - +-------------------------------+
+|                               |Masking-key, if MASK set to 1  |
++-------------------------------+-------------------------------+
+ 12              13              14              15
++-------------------------------+-------------------------------+
+| Masking-key (continued)       |          Payload Data         |
++-------------------------------- - - - - - - - - - - - - - - - +
+:                     Payload Data continued ...                :
++ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
+|                     Payload Data continued ...                |
++---------------------------------------------------------------+
+\end{lstlisting}
+\caption{Trame WebSocket}
+\end{figure}
 %%% Local Variables: 
 %%% mode: latex
 %%% TeX-master: "isae-report-template"
