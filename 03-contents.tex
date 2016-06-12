@@ -190,24 +190,6 @@ Lors du handshake le client passe dans la requête HTTP le champs \og Sec-WebSoc
 
 La suite de la communication est entièrement basée sur des trames websocket binaires, rythmés par des échanges de trames de controle ping et pong dit \og battement de coeur \fg{}, pour avoir la certitude que le la connexion est toujours active. Je ne vais pas détailler d'avantage les trames websocket car cela est peu utile et très spécifique, il suffit de lire la RFC 6455, je rajouterai seulement que le webscoket permet d'envoyer deux type de données, du texte brute UTF-8 et du binaires.
 
-\subsection{Fonctionnement}
-
-Pour expliquer le principe de fonctionnemment du tunnel en websocket (qui sera toujours en mode \og reverse \fg{}) qu'on applera plus facilement le tunnel, sans pour l'instant y ajouter le proxy HTTP dynamque, je vais en rédéfinir les acteurs, il y en a trois principaux :
-\begin{itemize}
-    \item Le serveur, c'est le serveur websocket principal qui pilote tout le tunnel, son IP est donc connu et publique. Il est connectés à la base de données Redis, sur laquel il stock les ports alloué et connexions courantes.
-    \item Le client, c'est la machine ou objet connecté souhaitant rendre accessible un de ses serveurs au public, dans notre cas se sera un serveur HTTP.
-    \item Le navigateur, c'est un utilisateur externe qui veut accéder au service du client, dans notre cas il fait une requête HTTP sur un port défini du serveur websocket. 
-\end{itemize}
-
-Pour faire fonctionner le tunnel il faut au minimum deux connexions websocket, la première est le websocket de contrôle, il sert à initialiser et avertir le client d'une nouvelle connexion du navigateur. Dans le handshake du websocket de contrôle, il faut passer dans l'URL les paramètres suivant, le nom du client et les ports qu'il souhaite faire passer. Le serveur va allouer au client un port disponible sur sa machine ou bien lui donner un port qu'il a déjà utilisé lors de sa précédente connexion mais qui n'a pas encore expiré. Le serveur va monter ce nouveau port alloué comme serveur TCP et y attendre une connexion. Bien sur si un client avec le même nom est déjà connecté la connexion sera refusé. C'est ce que j'appelle la phase d'initialisation du tunnel. Maintenant un navigateur qui connait le port alloué au client sur le serveur va se connecter dessus et y effectuer une requête HTTP. Le serveur va accepté la connexion étant donné qu'une requête HTTP utilise le TCP, il va mettre en attente le navigateur, tagger cette connexion avec un ID unique et envoyer un message sur le websocket de contrôle au client associé à ce port alloué. Ce message est très simple, il contient simplement le port qui a été associé à cette allocation de port lors de la phase d'initialisation du tunnel, soit le port 80 pour un serveur HTTP et l'ID de la connexion du navigateur. En recevant ce message par le websocket de contrôle le client va créer un nouvelle connexion websocket sur le serveur, que j'appelle le websocket de transfert, mais cette fois l'URL du handshake contiendra en paramètre l'ID associé à la connexion du navigateur. Il va aussi créer une connexion locale vers son serveur HTTP et la relier au nouveau websocket de transfert, parce que le message reçu indiqué une redirection sur le port 80. Ainsi le serveur quand il va recevoir la connexion websocket saura exactement que c'est un websocket de transfert grâce à l'ID dans l'URL associé à la connexion du navigateur en cours. Maintenant que le tunnel est completement formé le serveur va rediriger la requête du navigateur dans le websocket de transfert associé en mode binaire, qui va lui même la rediriger côté client au serveur HTTP. Celui-ci va répondre en envoyant une réponse HTTP qui va faire le chemin inverse. Une fois la réponse arrivée jusqu'à son destinataire, le navigateur va fermer la connexion TCP, ce qui va fermer également le websocket de transfert associé à cette connexion ainsi que la connexion local au serveur HTTP du client. Seul restera le websocket de contrôle et le serveur TCP monté sur le port alloué, qui attendront une nouvelle connexion d'un navigateur. Du fait que les connexions du navigateur soient taggées d'un ID unique, plusieurs connexions peuvent être traitées à la fois, ce qui entraine autant de websocket de transfert que de connexions des navigateurs, voilà pourquoi le websocket de contrôle n'est là que pour avertir des nouvelles connexions et ne fait pas aussi le transfert des requêtes. Si c'était le cas il y aura trop d'attente entre chaque requête. Lorsque que le client va fermer la connexion du websocket de contrôle alors le serveur TCP associé au port alloué au client va se fermer et le port prendra un délais d'expiration dans la base de données Redis.
-
-\subsection{Répartition de la charge}
-
-Cette solution serveur tunnel est prévus pour accueillir des centaines ou millier de client. Chaque client doit au minimum maintenir avec le serveur une connexion websocket de contrôle permanente, parce qu'un serveur ne doit enprincipe jamais s'éteindre. Ce qui pose un problème de capacité machine, en effet une machine physique ne peut ouvrir qu'un certain nombre de port maximum, notre serveur tunnel doit donc être multiplié en plusieurs grappes.
-
-Pour palier à ce problème j'ai rajouté une petite implémentation sur le serveur tunnel, chaque serveur dispose d'une IP et d'un compteur de client dans la base de données Redis. Quand un client ce connecte sur un serveur, celui-ci va faire un requête à Redis pour trier et selectionner l'IP qui possède le moins de client grâce au compteur de chaque serveur. Si l'IP qu'il obtient est la sienne, alors le serveur tunnel accepte la connexion websocket de contrôle et incrémente son compteur, sinon il retourne au client une réponse HTTP de code 302 avec en location l'IP, ce qui signifit une redirection HTTP sur cette IP, ne pas oublier que le websocket est construit sur un serveur HTTP à l'aide d'une requête handshake donc c'est totalement possible. Le client va devoir refaire une connexion websocket sur l'IP de redirection, jusqu'a obtenir un serveur qui l'accepte.
-
-\section{}
 \begin{figure}[htp]
 \centering
 \begin{lstlisting}[gobble=0, numbers=left, frame=l,
@@ -239,6 +221,74 @@ Pour palier à ce problème j'ai rajouté une petite implémentation sur le serv
 \end{lstlisting}
 \caption{Trame WebSocket}
 \end{figure}
+
+\subsection{Fonctionnement}
+
+Pour expliquer le principe de fonctionnemment du tunnel en websocket (qui sera toujours en mode \og reverse \fg{}) qu'on applera plus facilement le tunnel, sans pour l'instant y ajouter le proxy HTTP dynamque, je vais en rédéfinir les acteurs, il y en a trois principaux :
+\begin{itemize}
+    \item Le serveur, c'est le serveur websocket principal qui pilote tout le tunnel, son IP est donc connu et publique. Il est connectés à la base de données Redis, sur laquel il stock les ports alloué et connexions courantes.
+    \item Le client, c'est la machine ou objet connecté souhaitant rendre accessible un de ses serveurs au public, dans notre cas se sera un serveur HTTP.
+    \item Le navigateur, c'est un utilisateur externe qui veut accéder au service du client, dans notre cas il fait une requête HTTP sur un port défini du serveur websocket. 
+\end{itemize}
+
+Pour faire fonctionner le tunnel il faut au minimum deux connexions websocket, la première est le websocket de contrôle, il sert à initialiser et avertir le client d'une nouvelle connexion du navigateur. Dans le handshake du websocket de contrôle, il faut passer dans l'URL les paramètres suivant, le nom du client et les ports qu'il souhaite faire passer. Le serveur va allouer au client un port disponible sur sa machine ou bien lui donner un port qu'il a déjà utilisé lors de sa précédente connexion mais qui n'a pas encore expiré. Le serveur va monter ce nouveau port alloué comme serveur TCP et y attendre une connexion. Bien sur si un client avec le même nom est déjà connecté la connexion sera refusé. C'est ce que j'appelle la phase d'initialisation du tunnel. Maintenant un navigateur qui connait le port alloué au client sur le serveur va se connecter dessus et y effectuer une requête HTTP. Le serveur va accepté la connexion étant donné qu'une requête HTTP utilise le TCP, il va mettre en attente le navigateur, tagger cette connexion avec un ID unique et envoyer un message sur le websocket de contrôle au client associé à ce port alloué. Ce message est très simple, il contient simplement le port qui a été associé à cette allocation de port lors de la phase d'initialisation du tunnel, soit le port 80 pour un serveur HTTP et l'ID de la connexion du navigateur. En recevant ce message par le websocket de contrôle le client va créer un nouvelle connexion websocket sur le serveur, que j'appelle le websocket de transfert, mais cette fois l'URL du handshake contiendra en paramètre l'ID associé à la connexion du navigateur. Il va aussi créer une connexion locale vers son serveur HTTP et la relier au nouveau websocket de transfert, parce que le message reçu indiqué une redirection sur le port 80. Ainsi le serveur quand il va recevoir la connexion websocket saura exactement que c'est un websocket de transfert grâce à l'ID dans l'URL associé à la connexion du navigateur en cours. Maintenant que le tunnel est completement formé le serveur va rediriger la requête du navigateur dans le websocket de transfert associé en mode binaire, qui va lui même la rediriger côté client au serveur HTTP. Celui-ci va répondre en envoyant une réponse HTTP qui va faire le chemin inverse. Une fois la réponse arrivée jusqu'à son destinataire, le navigateur va fermer la connexion TCP, ce qui va fermer également le websocket de transfert associé à cette connexion ainsi que la connexion local au serveur HTTP du client. Seul restera le websocket de contrôle et le serveur TCP monté sur le port alloué, qui attendront une nouvelle connexion d'un navigateur. Du fait que les connexions du navigateur soient taggées d'un ID unique, plusieurs connexions peuvent être traitées à la fois, ce qui entraine autant de websocket de transfert que de connexions des navigateurs, voilà pourquoi le websocket de contrôle n'est là que pour avertir des nouvelles connexions et ne fait pas aussi le transfert des requêtes. Si c'était le cas il y aura trop d'attente entre chaque requête. Lorsque que le client va fermer la connexion du websocket de contrôle alors le serveur TCP associé au port alloué au client va se fermer et le port prendra un délais d'expiration dans la base de données Redis.
+
+\subsection{Répartition de la charge}
+
+Cette solution serveur tunnel est prévus pour accueillir des centaines ou millier de client. Chaque client doit au minimum maintenir avec le serveur une connexion websocket de contrôle permanente, parce qu'un serveur ne doit enprincipe jamais s'éteindre. Ce qui pose un problème de capacité machine, en effet une machine physique ne peut ouvrir qu'un certain nombre de port maximum, notre serveur tunnel doit donc être multiplié en plusieurs grappes.
+
+Pour palier à ce problème j'ai rajouté une petite implémentation sur le serveur tunnel, chaque serveur dispose d'une IP et d'un compteur de client dans la base de données Redis. Quand un client ce connecte sur un serveur, celui-ci va faire un requête à Redis pour trier et selectionner l'IP qui possède le moins de client grâce au compteur de chaque serveur. Si l'IP qu'il obtient est la sienne, alors le serveur tunnel accepte la connexion websocket de contrôle et incrémente son compteur, sinon il retourne au client une réponse HTTP de code 302 avec en location l'IP, ce qui signifit une redirection HTTP sur cette IP, ne pas oublier que le websocket est construit sur un serveur HTTP à l'aide d'une requête handshake donc c'est totalement possible. Le client va devoir refaire une connexion websocket sur l'IP de redirection, jusqu'a obtenir un serveur qui l'accepte.
+
+\section{Le client}
+
+\subsection{Toolchain}
+
+j'ai choisi de développer le client en C++, ce qui m'a demandé de compiler le client pour chaque architectures. J'ai donc dû faire de la compilation croissée en utilisant une chaîne de compilation (\og toolchain \fg{}) spécifique, c'est-à-dire que j'ai compilé sous UNIX mais en utilisant un compilateur qui a compilé mes sources dans un format d'exécutable, qui pouvait être exécuté que sur le système d'exploitation et architectures cible. Toute ces chaînes de compilations avaient en commun d'être basée sur le compilateur GCC. J'ai utilisé ces chaînes de compilation pour ces cibles précise :
+\begin{itemize}
+    \item arm-linux-gnueabi : pour ARM (Android, Raspbian et autre kernel UNIX).
+    \item mips-openwrt-linux-uclibc : pour MIPS (Arduino Yun).
+    \item x86\_64-w64-mingw32 : pour Windows x64.
+    \item i686-w64-mingw32 : pour Windows x32, particulièrement Windows XP.
+\end{itemize}
+
+Certaine chaîne de compilation ont dû elle même être compilé pour être éxécuté sur ma version de GNU/Linux de développement.
+
+\subsection{Socket natif}
+
+Pour m'assurer d'être entièrement portable j'ai essayé de ne pas utilisé de bibliothèque tiers. J'ai seulement utilisé une bibliothèque de cryptographie pour pouvoir vérifier la validité de la clef du hanshake websocket renvoyé par le serveur. Elle m'a permet d'utiliser le SHA1 et la base64, mais à cause de cela, je l'ai re-compilé à la main, en ré-écrivant les makefiles pour chaque architecture ce qui était plustôt fastidieux.
+
+Puisque que je n'utilisais pas de bibliothèque réseau, j'ai directement utilisé les sockets natif à chaque système d'exploitation. Les sockets permettent de réaliser facilement des connexions TCP ou UDP ou d'ouvrir un port pour y attendre des connexions. Ce sont des fonctionnalités réseau assez bas niveau, j'ai dû écrire par dessus ma propre implémentation d'un client websocket et d'un proxy de redirection de flux. Malheureusement les sockets sont encore une fonctionnalités pas completement portable. En effet certaines fonctionnalités liés aux sockets sont différentes sur UNIX et sur Windows, voir même inexistante sur d'autre.
+
+Pour palier à ce problème, j'ai utilisé des MACRO conditionnels en C, pour que mon compilateur me compile une partie de mon code source uniquement pour un systèmes d'exploitation et pas pour les autres. Pour les fonctionnalités inexistantes, je n'ai pas eu le choix que de l'ai remplacé par d'autre plus ancienne, c'est le cas avec Windows XP qui n'avait pas des fonctions essentiels de gestion de socket existante sur windows Vista, Seven ou 10.
+
+Etant donné que le client doit pouvoir lire plusieurs sockets en même temps, quand par exemple plusieurs connexion websocket de transfert sont créés. J'ai utilisé des sockets en mode asynchrone, c'est-à-dire qu'ils ne bloquaient pas le processus quand ils n'avaient rien à recevoir d'une connexion. Cela nécessite d'utiliser aussi des fonctions systèmes de gestion de sockets qui ne consomme pas de CPU quand il n'y a rien à recevoir. J'ai par exemple utilisé \og poll \fg{}, appelé \og WSAPoll \fg{} sous windows, qui servait à me signaler quand il y avait un socket possible à lire parmis un tableau de sockets. Sous windows XP \og WSAPoll \fg{} n'existe pas, j'ai utilisé une autre version plus ancienne appelé \og select \fg{}. Toute ces modifications spécifiques ont pu être possible sur le même code source en utilisant les MACROs conditionnels.
+
+\subsection{Diagramme de classe}
+
+\section{Vue d'ensemble de la solution}
+
+\section{Implémentation sur microcontrôleur}
+
+En fin de stage, on m'a demandé d'essayer d'implémenter le client tunnel sur un microcontrôleur qui intègre la WIFI. Le choix s'est porté sur un ESP8266 modèle ESP-01, c'est un module WIFI IoT de la marque Espressif basé sur un microcontrôleur Xtensa Tensilica, cadencé à 80 Mhz, accompagné de 512K de mémoire FLASH pour une alimentation total de 3,3V. Ce module dipose de sa chaîne de compilation du nom de \og xtensa-lx106-elf \fg{}, elle aussi basé sur GCC, ainsi que d'un SDK fourni par Espressif pour développer un firmware à l'ESP8266 en C. 
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=12cm]{images/esp}
+  \caption{ESP8266 ESP-01}
+  \label{fig:une-autre-image}
+\end{figure}
+
+Il m'a fallu décortiquer le SDK pour ré-implémenter une version spécifique minimal du client en C. Cette version expérimental ne pouvait ouvrir qu'un seul websocket de transfert à la fois et le contenu de la page WEB était directement stocké en dur dans le programme du microcontrôleur. Une fois le programme compilé en binaire, il fallait le flashé dans la mémoire FLASH du microcontrôleur en UART (alias Serial), à l'aide d'un adaptateur UART en USB, par exemple de la marque FTDI.
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=12cm]{images/ftdi}
+  \caption{FTDI FT232RL USB to TTL Serial Adapter}
+  \label{fig:une-autre-image}
+\end{figure}
+
+Ce petit prototype sur microcontrôleur a tout de même était capable de se connecter au serveur par l'intermédiaire de notre WIFI (SSID et mot passe codé en dur dans le programme), son nom de domaine unique généré par le serveur pointait sur la page WEB stocké sur l'ESP, permettant d'allumer/éteindre une LED brancher au microcontrôleur sur le GPIO2 à l'aide d'un bouton HTML.
+
 %%% Local Variables: 
 %%% mode: latex
 %%% TeX-master: "isae-report-template"
