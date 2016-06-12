@@ -1,7 +1,11 @@
 base=lcorbel-report
 
 default:
-	pdflatex '\nonstopmode \input $(base)'
+	latex '\nonstopmode \input $(base)'
+	dvips $(base)
+	ps2pdf $(base).ps $(base).pdf
+	rm -f $(base).dvi $(base).ps
+
 clean:
 	rm -f *.aux *.dvi *.log *~ *.ps *.o *~ core *.nav *.out *.snm *.toc
 
